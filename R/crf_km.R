@@ -2,6 +2,7 @@ source("metrics.R")
 source("help_functions.R")
 source("Csurv.R")
 source("crf.R")
+source("cranger.R")
 
 list.of.packages <- c("survival", "randomForest")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
@@ -11,11 +12,17 @@ library(survival)
 library(randomForest)
 
 crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
-                tau, nnb = FALSE) {
+                tau, method = "randomForest", splitrule = "extratrees", nnb = FALSE) {
   # build Forest model
-  rf <- randomForest(fmla, data = data_train, ntree = ntree, nodesize=nodesize)
-  # get proximity matrix
-  proxMtx <- getWeights(rf, data_train, data_test, yname, iname)
+  if (method == "randomForest") {
+    rf <- randomForest(fmla, data = data_train, ntree = ntree, nodesize=nodesize)
+    # get proximity matrix
+    proxMtx <- rf.getWeights(rf, data_train, data_test, yname, iname)
+  } else if (method == "ranger") {
+    rf <- ranger(fmla, data = data_train, num.trees = ntree, min.node.size=nodesize, splitrule=splitrule)
+    # get proximity matrix
+    proxMtx <- ranger.getWeights(rf, data_train, data_test, yname, iname)
+  }
   # censor forest
   n <- nrow(data_test)
   ntrain <- nrow(data_train)

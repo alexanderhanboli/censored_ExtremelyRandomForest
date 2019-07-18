@@ -108,9 +108,8 @@ colnames(data_test) <- c('x', 'y', 'ind')
 # get quantiles
 tau <- 0.8
 nodesize <- 5
-Yc <- crf.km(y ~ x, ntree = 1000, nodesize = 6*nodesize, data_train = data_train, data_test = data_test,
-          yname = 'y', iname = 'ind',
-          tau = tau)
+Yc <- crf.km(y ~ x, ntree = 1000, nodesize = nodesize, data_train = data_train, data_test = data_test,
+          yname = 'y', iname = 'ind', tau = tau, method = "ranger", splitrule = "extratrees")
 
 # RSF
 v.rsf <- rfsrc(Surv(y, ind) ~ ., data = data_train, ntree = 1000)

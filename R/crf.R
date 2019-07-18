@@ -4,26 +4,26 @@ if(length(new.packages)) install.packages(new.packages, repos='http://cran.us.r-
 library(foreach)
 library(doParallel)
 
-getNodes = function(rf, data, y_name, c_name) {
+rf.getNodes = function(rf, data, y_name, c_name) {
   pred = predict(rf, data[ ,!(names(data) %in% c(y_name, c_name)), drop=F], nodes = T)
   nodes = attributes(pred)$nodes
-  
+
   return(nodes)
 }
 
-getWeights = function(rf, traindata, testdata, y_name, c_name) {
+rf.getWeights = function(rf, traindata, testdata, y_name, c_name) {
   cores=detectCores()
   cl <- makeCluster(cores[1]-1) #not to overload your computer
   cat("number of cores: ", cores[1]-1)
   registerDoParallel(cl)
-  
+
   # retrieve training nodes
-  nodes = getNodes(rf, traindata, y_name, c_name) # [train.samples, trees]
-  
+  nodes = rf.getNodes(rf, traindata, y_name, c_name) # [train.samples, trees]
+
   # retrieve nodes for test data
-  test.nodes = getNodes(rf, testdata, y_name, c_name) # [test.samples, trees]
+  test.nodes = rf.getNodes(rf, testdata, y_name, c_name) # [test.samples, trees]
   nodesize = test.nodes # [test.samples, trees]
-  
+
   # loop over trees
   print("loop begins...\n")
   ntrees = rf$ntree
@@ -35,6 +35,6 @@ getWeights = function(rf, traindata, testdata, y_name, c_name) {
       weight
   }
   stopCluster(cl)
-  
+
   return(weights/ntrees)
 }
