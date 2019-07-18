@@ -1,11 +1,10 @@
-setwd("../R")
+setwd("./R")
 
 source("metrics.R")
 source("help_functions.R")
 source('crf_km.R')
-source("crf.R")
 
-list.of.packages <- c("ggplot2", "quantregForest", "randomForestSRC", "survival")
+list.of.packages <- c("ggplot2", "grf", "quantregForest", "randomForestSRC", "survival")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages, repos='http://cran.us.r-project.org')
 
@@ -13,6 +12,7 @@ library(ggplot2)
 library(quantregForest)
 library(randomForestSRC)
 library(survival)
+library(grf)
 
 # help functions
 get.event.info <- function(obj, subset = NULL) {
