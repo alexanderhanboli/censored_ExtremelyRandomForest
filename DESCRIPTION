@@ -1,0 +1,7 @@
+Package: cERF
+Version: 0.1
+Date: 2019-07-17
+Title: cERF
+Description: Censored quantile regression using Random Forest or Extremely Random Forest.
+Author: Alexander Hanbo Li <alexanderhanboli@gmail.com>
+Maintainer: Alexander Hanbo Li <alexanderhanboli@gmail.com>
