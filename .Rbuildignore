@@ -1,2 +1,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^cERF\.Rcheck$
+^cERF.*\.tar\.gz$
+^cERF.*\.tgz$

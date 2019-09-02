@@ -73,7 +73,7 @@ find_quantile <- function(surv, max_value, tau){
 # ------------------------------------------------------- #
 
 attach(mtcars)
-op <- par(mar=c(4,4,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
+op <- par(mfrow=c(2,2), mar=c(4,4,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
 
 # Load in the data
 n <- 300
@@ -96,59 +96,54 @@ points(Xtrain[!censorInd], Ttrain[!censorInd], type = 'p', col = 'green', cex = 
 Xtest <- sort(runif(n = n_test, min = 0, max = 2))
 Ytest <- exp(Xtest + rnorm(n_test, mean = 0, sd = sigma))
 data_test <- cbind.data.frame(Xtest, Ytest, rep(1, n_test))
-
 colnames(data_train) <- c('x', 'y', 'ind')
 colnames(data_test) <- c('x', 'y', 'ind')
 
-# build an AFT model
-# aft <- survreg(Surv(y, ind) ~ ., data_train, dist='weibull', scale=1)
-# Yaft <- predict(aft, data_test)
+# parameters
+ntree = 100
+taus <- c(0.2, 0.5, 0.8)
+nodesize <- 10
 
-# build generalizedForest model
-# get quantiles
-tau <- 0.8
-nodesize <- 5
-Yc <- crf.km(y ~ x, ntree = 1000, nodesize = nodesize, data_train = data_train, data_test = data_test,
-          yname = 'y', iname = 'ind', tau = tau, method = "ranger", splitrule = "extratrees")
+one_run = function(ntree, tau, nodesize) {
+  # build generalizedForest model
+  # get quantiles
+  Yc <- crf.km(y ~ x, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test,
+               yname = 'y', iname = 'ind', tau = tau, method = "ranger", splitrule = "extratrees")
+  
+  # RSF
+  v.rsf <- rfsrc(Surv(y, ind) ~ ., data = data_train, ntree = ntree)
+  surv.rsf <- predict(v.rsf, newdata = data_test)
+  Yrsf <- find_quantile(surv = surv.rsf, max_value = max(data_train$y), tau = tau)
+  
+  # plot.survival(surv.rsf)
+  
+  # # generalized random forest (Stefan's)
+  # # latent T ~ x
+  grf_qf_latent <- quantile_forest(data_train[,1,drop=FALSE], Ttrain, quantiles = tau, num.trees = ntree, min.node.size = nodesize)
+  Ygrf_latent <- predict(grf_qf_latent, data_test[,1,drop=FALSE], quantiles = tau)
+  # # censored Y ~ x
+  grf_qf <- quantile_forest(data_train[,1,drop=FALSE], Ytrain, quantiles = tau, num.trees = ntree, min.node.size = nodesize)
+  Ygrf <- predict(grf_qf, data_test[,1,drop=FALSE], quantiles = tau)
+  
+  # Meinshasen
+  #qrf_latent <- quantregForest(x=data_train[,1,drop=FALSE], y=Ttrain, nodesize=3*nodesize, ntree=1000)
+  #Yqrf_latent <- predict(qrf_latent, data_test[,1,drop=FALSE], what = tau)
+  
+  # comparison
+  plot(Xtest, Ytest, cex = 0.04, xlab = 'x', ylab = 'y')
+  quantiles <- exp(Xtest + qnorm(tau, 0, sigma))
+  lines(Xtest, quantiles, col = 'black', cex = 2)
+  lines(Xtest, Yc$predicted, col='red', lty = 5, cex = 1)
+  lines(Xtest, Ygrf, col = 'black', lty = 2, cex = 1)
+  lines(Xtest, Ygrf_latent, col = 'black', type = 'b', pch = 18, lty = 1, cex = .5)
+  lines(Xtest, Yrsf, col = 'blue', lty = 5, cex = 1)
+  
+  # Add a legend
+  legend(0.1, 10, legend=c("true quantile", "cRF", "gRF", "gRF-oracle", "rsf"),
+         lty=c(1, 5, 2, 1, 5), cex=0.8, pch = c(-1,-1,-1, 18, -1), col = c('black', 'red', 'black', 'black', 'blue'))
+  title(main = paste("tau =", tau))
+}
 
-# RSF
-v.rsf <- rfsrc(Surv(y, ind) ~ ., data = data_train, ntree = 1000)
-surv.rsf <- predict(v.rsf, newdata = data_test)
-Yrsf <- find_quantile(surv = surv.rsf, max_value = max(data_train$y), tau = tau)
-
-plot.survival(surv.rsf)
-
-# without debiasing
-#Yc_nodebias <- crf(y ~ x, ntree = 2000, nodesize = nodesize, data_train = data_train, data_test = data_test,
-#          yname = 'y', iname = 'ind',
-#          tau = tau, fixed_censoring = FALSE, fixed_c = NULL, debias = FALSE)
-
-# # generalized random forest (Stefan's)
-# # latent T ~ x
-grf_qf_latent <- quantile_forest(data_train[,1,drop=FALSE], Ttrain, quantiles = tau, num.trees = 1000, min.node.size = nodesize)
-Ygrf_latent <- predict(grf_qf_latent, Xtest, quantiles = tau)
-# # censored Y ~ x
-grf_qf <- quantile_forest(data_train[,1,drop=FALSE], Ytrain, quantiles = tau, num.trees = 1000, min.node.size = nodesize)
-Ygrf <- predict(grf_qf, Xtest, quantiles = tau)
-
-# # survival forest
-# surv_rf <- rfsrc(Surv(y, ind) ~ x, data = data_train, ntree = 1000, nodesize = 100)
-# Ysurv <- predict(surv_rf, newdata = data_test)$predicted
-
-# Meinshasen
-#qrf_latent <- quantregForest(x=data_train[,1,drop=FALSE], y=Ttrain, nodesize=3*nodesize, ntree=1000)
-#Yqrf_latent <- predict(qrf_latent, data_test[,1,drop=FALSE], what = tau)
-
-# comparison
-plot(Xtest, Ytest, cex = 0.04, xlab = 'x', ylab = 'y')
-quantiles <- exp(Xtest + qnorm(tau, 0, sigma))
-lines(Xtest, quantiles, col = 'black', cex = 2)
-lines(Xtest, Yc$predicted, col='red', lty = 5, cex = 1)
-lines(Xtest, Ygrf, col = 'black', lty = 2, cex = 1)
-lines(Xtest, Ygrf_latent, col = 'black', type = 'b', pch = 18, lty = 1, cex = .5)
-lines(Xtest, Yrsf, col = 'blue', lty = 5, cex = 1)
-
-# Add a legend
-legend(0.1, 10, legend=c("true quantile", "cRF", "gRF", "gRF-oracle", "rsf"),
-       lty=c(1, 5, 2, 1, 5), cex=0.8, pch = c(-1,-1,-1, 18, -1), col = c('black', 'red', 'black', 'black', 'blue'))
-title(main = paste("tau =", tau))
+for (tau in taus){
+  one_run(ntree, tau, nodesize)
+}

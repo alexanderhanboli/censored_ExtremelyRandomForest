@@ -4,12 +4,13 @@ source("Csurv.R")
 source("crf.R")
 source("cranger.R")
 
-list.of.packages <- c("survival", "randomForest")
+list.of.packages <- c("survival", "randomForest", "ranger")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages, repos='http://cran.us.r-project.org')
 
 library(survival)
 library(randomForest)
+library(ranger)
 
 crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
                 tau, method = "randomForest", splitrule = "extratrees", nnb = FALSE) {
