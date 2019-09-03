@@ -14,66 +14,10 @@ library(randomForestSRC)
 library(survival)
 library(grf)
 
-# help functions
-get.event.info <- function(obj, subset = NULL) {
-  ## survival case
-  if (grepl("surv", obj$family)) {
-    if (!is.null(obj$yvar)) {
-      if (is.null(subset)) {
-        subset <- (1:nrow(cbind(obj$yvar)))
-      }
-      r.dim <- 2
-      time <- obj$yvar[subset, 1]
-      cens <- obj$yvar[subset, 2]
-      ## censoring must be coded coherently
-      if (!all(floor(cens) == abs(cens), na.rm = TRUE)) {
-        stop("for survival families censoring variable must be coded as a non-negative integer")
-      }
-      ## Extract the unique event types.
-      event <- na.omit(cens)[na.omit(cens) > 0]
-      event.type <- sort(unique(event))
-    }
-    ##everything else
-    else {
-      r.dim <- 0
-      event <- event.type <- cens <- cens <- time <- NULL
-    }
-    ## Set grid of time points.
-    time.interest <- obj$time.interest
-  }
-  else {
-    ## NULL for other families
-    if ((obj$family == "regr+") | (obj$family == "class+")) {
-      r.dim <- dim(obj$yvar)[2]
-    }
-    else {
-      r.dim <- 1
-    }
-    event <- event.type <- cens <- time.interest <- cens <- time <- NULL
-  }
-  return(list(event = event, event.type = event.type, cens = cens,
-              time.interest = time.interest, time = time, r.dim = r.dim))
-}
-
-find_quantile <- function(surv, max_value, tau){
-  b_size <- dim(surv$survival)[1]
-  event.info <- get.event.info(surv)
-  bin <- event.info$time.interest
-  quantiles <- rep(0, b_size)
-  for (i in 1:b_size){
-    check <- surv$survival[i,] >= 1-tau
-    j <- max(sum(check), 1)
-    quantile <- bin[j]
-    quantiles[i] <- quantile
-  }
-
-  return(quantiles)
-}
-
 # ------------------------------------------------------- #
 
 attach(mtcars)
-op <- par(mfrow=c(2,2), mar=c(4,4,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
+op <- par(mfrow=c(2,2), mar=c(1,1,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
 
 # Load in the data
 n <- 300
@@ -100,14 +44,15 @@ colnames(data_train) <- c('x', 'y', 'ind')
 colnames(data_test) <- c('x', 'y', 'ind')
 
 # parameters
-ntree = 100
+ntree = 1000
 taus <- c(0.2, 0.5, 0.8)
-nodesize <- 10
+nodesize.crf <- 50
+nodesize.grf <- 10
 
 one_run = function(ntree, tau, nodesize) {
   # build generalizedForest model
   # get quantiles
-  Yc <- crf.km(y ~ x, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test,
+  Yc <- crf.km(y ~ x, ntree = ntree, nodesize = nodesize.crf, data_train = data_train, data_test = data_test,
                yname = 'y', iname = 'ind', tau = tau, method = "ranger", splitrule = "extratrees")
   
   # RSF
@@ -119,28 +64,28 @@ one_run = function(ntree, tau, nodesize) {
   
   # # generalized random forest (Stefan's)
   # # latent T ~ x
-  grf_qf_latent <- quantile_forest(data_train[,1,drop=FALSE], Ttrain, quantiles = tau, num.trees = ntree, min.node.size = nodesize)
+  grf_qf_latent <- quantile_forest(data_train[,1,drop=FALSE], Ttrain, quantiles = tau, num.trees = ntree, min.node.size = nodesize.grf)
   Ygrf_latent <- predict(grf_qf_latent, data_test[,1,drop=FALSE], quantiles = tau)
   # # censored Y ~ x
-  grf_qf <- quantile_forest(data_train[,1,drop=FALSE], Ytrain, quantiles = tau, num.trees = ntree, min.node.size = nodesize)
+  grf_qf <- quantile_forest(data_train[,1,drop=FALSE], Ytrain, quantiles = tau, num.trees = ntree, min.node.size = nodesize.grf)
   Ygrf <- predict(grf_qf, data_test[,1,drop=FALSE], quantiles = tau)
   
   # Meinshasen
-  #qrf_latent <- quantregForest(x=data_train[,1,drop=FALSE], y=Ttrain, nodesize=3*nodesize, ntree=1000)
+  #qrf_latent <- quantregForest(x=data_train[,1,drop=FALSE], y=Ttrain, nodesize=nodesize.crf, ntree=ntree)
   #Yqrf_latent <- predict(qrf_latent, data_test[,1,drop=FALSE], what = tau)
   
   # comparison
   plot(Xtest, Ytest, cex = 0.04, xlab = 'x', ylab = 'y')
   quantiles <- exp(Xtest + qnorm(tau, 0, sigma))
   lines(Xtest, quantiles, col = 'black', cex = 2)
-  lines(Xtest, Yc$predicted, col='red', lty = 5, cex = 1)
   lines(Xtest, Ygrf, col = 'black', lty = 2, cex = 1)
   lines(Xtest, Ygrf_latent, col = 'black', type = 'b', pch = 18, lty = 1, cex = .5)
   lines(Xtest, Yrsf, col = 'blue', lty = 5, cex = 1)
+  lines(Xtest, Yc$predicted, col='red', lty = 5, cex = 1)
   
   # Add a legend
-  legend(0.1, 10, legend=c("true quantile", "cRF", "gRF", "gRF-oracle", "rsf"),
-         lty=c(1, 5, 2, 1, 5), cex=0.8, pch = c(-1,-1,-1, 18, -1), col = c('black', 'red', 'black', 'black', 'blue'))
+  legend(0.1, 10, legend=c("true quantile", "gRF", "gRF-oracle", "rsf", "cRF"),
+         lty=c(1, 5, 2, 1, 5), cex=0.8, pch = c(-1,-1,-1, 10, -1), col = c('green', 'black', 'black', 'blue', 'red'))
   title(main = paste("tau =", tau))
 }
 

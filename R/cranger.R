@@ -12,22 +12,22 @@ ranger.getNodes = function(rg, data, y_name, c_name) {
 }
 
 ranger.getWeights = function(rg, traindata, testdata, y_name, c_name) {
-  num_cores = min(4, detectCores() - 1) #not to overload your computer
+  num_cores = detectCores() - 1 #not to overload your computer
   cl <- makeCluster(num_cores, type="FORK")
   cat("number of cores: ", num_cores)
   registerDoParallel(cl)
 
   # retrieve training nodes
-  print("retrieving training node information...\n")
+  #print("retrieving training node information...\n")
   nodes = ranger.getNodes(rg, traindata, y_name, c_name) # [train.samples, trees]
 
   # retrieve nodes for test data
-  print("retrieving test node information...\n")
+  #print("retrieving test node information...\n")
   test.nodes = ranger.getNodes(rg, testdata, y_name, c_name) # [test.samples, trees]
   nodesize = test.nodes # [test.samples, trees]
 
   # loop over trees
-  print("loop begins...\n")
+  print("loop begins...")
   ntrees = rg$num.trees
   weights <- foreach(k=1:ntrees, .combine='+') %dopar% {
     in.leaf = 1*outer(test.nodes[,k],nodes[,k],'==') # [test.samples, train.samples] indicates whether a test and a train data are in the same leaf node

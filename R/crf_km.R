@@ -24,6 +24,7 @@ crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
     # get proximity matrix
     proxMtx <- ranger.getWeights(rf, data_train, data_test, yname, iname)
   }
+  
   # censor forest
   n <- nrow(data_test)
   ntrain <- nrow(data_train)
@@ -47,10 +48,10 @@ crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
     max.uncensored <- max(Ytrain[boot.idx & censorInd==1])
     #min.all <- min(Ytrain[boot.idx])
     #candidateY <- seq(min.all, max.uncensored, length.out = 1000)
-    candidateY <- Ytrain[boot.idx & Ytrain<=max.uncensored]
+    candidateY <- sort(Ytrain[boot.idx & Ytrain<=max.uncensored], decreasing = FALSE)
 
     Yc[r] <- candidateY[1]
-    min_loss <- 10
+    min_loss <- 1000
 
     denom <- sapply(Ytrain, function(x) {1*(Ytrain >= x)%*%proxMtx[r, ]})
     denom[denom == 0] <- 1
