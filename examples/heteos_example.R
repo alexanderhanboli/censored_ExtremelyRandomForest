@@ -49,14 +49,16 @@ colnames(data_test) <- c(xnam, 'y', 'status')
 # parameters
 ntree = 1000
 taus <- c(0.1, 0.5, 0.9)
-nodesize.crf <- 200
+nodesize.crf <- 50
+nodesize.qrf <- 200
 nodesize.grf <- 50
 
 one_run = function(ntree, tau, nodesize) {
   # build censored Extreme Forest model
   fmla <- as.formula(paste("y ~ ", paste(xnam, collapse= "+")))
   Yc <- crf.km(fmla, ntree = ntree, nodesize = nodesize.crf, data_train = data_train, data_test = data_test, 
-               yname = 'y', iname = 'status', tau = tau, method = "grf", splitrule = "extratrees")$predicted
+               yname = 'y', iname = 'status', tau = tau, method = "grf", splitrule = "extratrees")
+  Yc <- Yc$predicted
   
   # generalized random forest (Stefan's)
   # grf_qf_latent <- quantile_forest(data_train[,1:p,drop=FALSE], Ttrain, quantiles = tau, 
@@ -75,7 +77,7 @@ one_run = function(ntree, tau, nodesize) {
   Yqrf <- predict(qrf, Xtest, what = tau)
   
   # comparison
-  plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y')
+  plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y', ylim = c(-3, 3))
   Xsort <- sort(Xtest[,1], index.return=TRUE)
   X1 <- Xsort$x
   Xindex <- Xsort$ix
@@ -88,7 +90,7 @@ one_run = function(ntree, tau, nodesize) {
   
   # Add a legend
   legend(-1, 5, legend=c("true quantile", "gRF", "qrf", "cRF"),
-         lty=c(1, 5, 1, 5), cex=0.8, pch = c(-1,-1, 10, -1), col = c('green', 'black', 'blue', 'red'))
+         lty=c(1, 5, 5, 5), cex=0.8, pch = c(-1,-1, -1, -1), col = c('black', 'green', 'blue', 'red'))
   title(main = paste("tau =", tau))
 }
 

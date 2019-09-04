@@ -27,9 +27,10 @@ crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
     proxMtx <- ranger.getWeights(rf, data_train, data_test, yname, iname)
   } else if (method == "grf") {
     rf <- quantile_forest(X=data_train[ ,!(names(data_train) %in% c(yname, iname)), drop=F], Y=data_train[,yname], quantiles = calibrate_taus, num.trees = ntree, min.node.size = nodesize, honesty = honesty)
-    proxMtx <- grf.getWeights(rf, data_test, yname, iname)
+    proxMtx <- as.matrix(grf.getWeights(rf, data_test, yname, iname))
   }
   print(paste0("Sparsity ratio is ", sum(proxMtx==0)/sum(proxMtx!=0)))
+  print(paste0("Proxity matrix dimension is ", dim(proxMtx)[1], " by ", dim(proxMtx)[2]))
   # censor forest
   n <- nrow(data_test)
   ntrain <- nrow(data_train)
@@ -83,7 +84,8 @@ crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
   }
   return(
     list(
-      'predicted'=Yc
+      'predicted'=Yc,
+      'proxMtx'=proxMtx
     )
   )
 }
