@@ -17,7 +17,7 @@ library(grf)
 # ------------------------------------------------------- #
 
 attach(mtcars)
-op <- par(mfrow=c(2,2), mar=c(1,1,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
+op <- par(mfrow=c(2,2), mar=c(4,4,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
 
 # Create the data
 n <- 2000
@@ -27,7 +27,8 @@ p <- 40
 # training data
 Xtrain <- matrix(runif(n = n*p, min = -1, max = 1), nrow = n, ncol = p)
 Ttrain <- rnorm(n = n, mean = 0, sd = 1 + 1*(Xtrain[,1]>0))
-ctrain <- rep(1000000000, n)
+#ctrain <- rep(1000000000, n)
+ctrain <- rexp(n = n, rate = 0.05) - 2
 Ytrain <- pmin(Ttrain, ctrain)
 censorInd <- 1*(Ttrain <= ctrain)
 data_train <- cbind.data.frame(Xtrain, Ytrain, censorInd)
@@ -47,11 +48,11 @@ colnames(data_train) <- c(xnam, 'y', 'status')
 colnames(data_test) <- c(xnam, 'y', 'status')
 
 # parameters
-ntree = 1000
+ntree = 1500
 taus <- c(0.1, 0.5, 0.9)
-nodesize.crf <- 50
-nodesize.qrf <- 200
-nodesize.grf <- 50
+nodesize.crf <- 60
+nodesize.qrf <- 60
+nodesize.grf <- 60
 
 one_run = function(ntree, tau, nodesize) {
   # build censored Extreme Forest model
@@ -73,8 +74,9 @@ one_run = function(ntree, tau, nodesize) {
   # qrf_latent <- quantregForest(x=Xtrain, y=Ttrain, nodesize=nodesize, ntree=ntree)
   # Yqrf_latent <- predict(qrf_latent, Xtest, what = tau)
   
-  qrf <- quantregForest(x=Xtrain, y=Ytrain, nodesize=nodesize.crf, ntree=ntree)
-  Yqrf <- predict(qrf, Xtest, what = tau)
+  qrf <- quantile_forest(data_train[,1:p,drop=FALSE], Ytrain, quantiles = tau, 
+                         num.trees = ntree, min.node.size = nodesize.qrf, regression.splitting = TRUE)
+  Yqrf <- predict(qrf, data_test[,1:p,drop=FALSE], quantiles = tau)
   
   # comparison
   plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y', ylim = c(-3, 3))
@@ -83,13 +85,13 @@ one_run = function(ntree, tau, nodesize) {
   Xindex <- Xsort$ix
   quantiles <- qnorm(tau, 0, 1 + 1*(X1>0))
   lines(X1, quantiles, col = 'black', cex = 2)
-  lines(X1, Ygrf[Xindex], col = 'black', lty = 2, cex = 1)
+  lines(X1, Ygrf[Xindex], col = 'green', lty = 5, cex = 1)
   # lines(Xtest[,1], Ygrf_latent, col = 'black', type = 'b', pch = 18, lty = 1, cex = .5)
   lines(X1, Yqrf[Xindex], col = 'blue', lty = 5, cex = 1)
   lines(X1, Yc[Xindex], col='red', lty = 5, cex = 1)
   
   # Add a legend
-  legend(-1, 5, legend=c("true quantile", "gRF", "qrf", "cRF"),
+  legend(-1, 3, legend=c("true quantile", "grf", "qrf", "crf"),
          lty=c(1, 5, 5, 5), cex=0.8, pch = c(-1,-1, -1, -1), col = c('black', 'green', 'blue', 'red'))
   title(main = paste("tau =", tau))
 }
