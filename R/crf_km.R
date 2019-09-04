@@ -3,17 +3,19 @@ source("help_functions.R")
 source("Csurv.R")
 source("crf.R")
 source("cranger.R")
+source("cgrf.R")
 
-list.of.packages <- c("survival", "randomForest", "ranger")
+list.of.packages <- c("survival", "randomForest", "ranger", "grf")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages, repos='http://cran.us.r-project.org')
 
 library(survival)
 library(randomForest)
 library(ranger)
+library(grf)
 
 crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
-                tau, method = "randomForest", splitrule = "extratrees", nnb = FALSE) {
+                tau, calibrate_taus = c(0.1, 0.5, 0.9), honesty = TRUE, method = "randomForest", splitrule = "extratrees", nnb = FALSE) {
   # build Forest model
   if (method == "randomForest") {
     rf <- randomForest(fmla, data = data_train, ntree = ntree, nodesize=nodesize)
@@ -23,8 +25,11 @@ crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
     rf <- ranger(fmla, data = data_train, num.trees = ntree, min.node.size=nodesize, splitrule=splitrule)
     # get proximity matrix
     proxMtx <- ranger.getWeights(rf, data_train, data_test, yname, iname)
+  } else if (method == "grf") {
+    rf <- quantile_forest(X=data_train[ ,!(names(data_train) %in% c(yname, iname)), drop=F], Y=data_train[,yname], quantiles = calibrate_taus, num.trees = ntree, min.node.size = nodesize, honesty = honesty)
+    proxMtx <- grf.getWeights(rf, data_test, yname, iname)
   }
-  
+  print(paste0("Sparsity ratio is ", sum(proxMtx==0)/sum(proxMtx!=0)))
   # censor forest
   n <- nrow(data_test)
   ntrain <- nrow(data_train)
@@ -33,6 +38,7 @@ crf.km <- function(fmla, ntree, nodesize, data_train, data_test, yname, iname,
   censorInd <- data_train[[iname]]
   right_censoring <- TRUE
   # find minimum
+  print("solving weighted quantile regression...(censored version if data is censored)")
   for (r in 1:NROW(data_test)) {
     # C survival estimate
     if (nnb) {

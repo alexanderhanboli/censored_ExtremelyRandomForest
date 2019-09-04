@@ -86,7 +86,7 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
 }
 
 B = 120
-tau <- 0.2
+tau <- 0.8
 nodesize <- 0
 mse_result <- list('nodesize' = rep(NA,B), 'crf'=rep(NA,B), 'qrf'=rep(NA,B), 'grf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
 mad_result <- list('nodesize' = rep(NA,B), 'crf'=rep(NA,B), 'qrf'=rep(NA,B), 'grf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
