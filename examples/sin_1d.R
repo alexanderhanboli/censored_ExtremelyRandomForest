@@ -17,7 +17,7 @@ library(grf)
 # ------------------------------------------------------- #
 
 attach(mtcars)
-op <- par(mfrow=c(2,2), mar=c(4,4,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
+op <- par(mfrow=c(2,2), mar=c(2,2,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
 
 # Load in the data
 n <- 300
@@ -45,19 +45,19 @@ colnames(data_train) <- c('x', 'y', 'ind')
 colnames(data_test) <- c('x', 'y', 'ind')
 
 # parameters
-ntree = 1000
-taus <- c(0.2, 0.5, 0.8)
-nodesize.crf <- 50
+ntree = 500
+taus <- c(0.1, 0.5, 0.9)
+nodesize.crf <- 10
 nodesize.grf <- 10
 
-one_run = function(ntree, tau, nodesize) {
+one_run = function(ntree, tau) {
   # build generalizedForest model
   # get quantiles
   Yc <- crf.km(y ~ x, ntree = ntree, nodesize = nodesize.crf, data_train = data_train, data_test = data_test,
-               yname = 'y', iname = 'ind', tau = tau, method = "ranger", splitrule = "extratrees")
+               yname = 'y', iname = 'ind', tau = tau, method = "grf", calibrate_taus = taus)
   
   # RSF
-  v.rsf <- rfsrc(Surv(y, ind) ~ ., data = data_train, ntree = ntree)
+  v.rsf <- rfsrc(Surv(y, ind) ~ ., data = data_train, ntree = ntree, nodesize = nodesize.grf)
   surv.rsf <- predict(v.rsf, newdata = data_test)
   Yrsf <- find_quantile(surv = surv.rsf, max_value = max(data_train$y), tau = tau)
   
@@ -76,20 +76,20 @@ one_run = function(ntree, tau, nodesize) {
   #Yqrf_latent <- predict(qrf_latent, data_test[,1,drop=FALSE], what = tau)
   
   # comparison
-  plot(Xtest, Ytest, cex = 0.04, xlab = 'x', ylab = 'y')
+  plot(Xtest, Ytest, cex = 0.04, xlab = 'x', ylab = 'y', xlim=c(0, 6), ylim=c(0,4))
   quantiles <- sin(Xtest) + qnorm(tau, 0, sigma) + 2.5
   lines(Xtest, quantiles, col = 'black', cex = 2)
   lines(Xtest, Ygrf, col = 'black', lty = 2, cex = 1)
-  lines(Xtest, Ygrf_latent, col = 'black', type = 'b', pch = 18, lty = 1, cex = .5)
+  lines(Xtest, Ygrf_latent, col = 'green', type = 'b', pch = 18, lty = 1, cex = .5)
   lines(Xtest, Yrsf, col = 'blue', lty = 5, cex = 1)
   lines(Xtest, Yc$predicted, col='red', lty = 5, cex = 1)
   
   # Add a legend
-  legend(4, 4, legend=c("true quantile", "gRF", "gRF-oracle", "rsf", "cRF"),
-         lty=c(1, 5, 2, 1, 5), cex=0.8, pch = c(-1,-1,-1, 10, -1), col = c('green', 'black', 'black', 'blue', 'red'))
+  legend(0.1, 1.8, legend=c("true quantile", "grf", "grf-oracle", "rsf", "crf"),
+         lty=c(1, 2, 1, 5, 5), cex=c(1,1,1,1,1), pch = c(-1,-1,18, -1, -1), col = c('black', 'black', 'green', 'blue', 'red'))
   title(main = paste("tau =", tau))
 }
 
 for (tau in taus){
-  one_run(ntree, tau, nodesize)
+  one_run(ntree, tau)
 }

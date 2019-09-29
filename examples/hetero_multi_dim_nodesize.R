@@ -11,29 +11,30 @@ library(randomForestSRC)
 
 
 # Load in the data
-n <- 500
+n <- 1000
 n_test <- 500
-p <- 5
-ntree <- 800
+p <- 40
+ntree <- 1000
 
 one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   
   # training data
-  Xtrain <- matrix(runif(n = n*p, min = 0, max = 2), nrow = n, ncol = p)
-  beta <- c(0.1,0.2,0.3,0.4,0.5)
-  sigma <- 0.3
-  Ttrain <- exp(Xtrain%*%beta + rnorm(n, mean = 0, sd = sigma))
-  ctrain <- rexp(n = n, rate = 0.05)
+  # training data
+  Xtrain <- matrix(runif(n = n*p, min = -1, max = 1), nrow = n, ncol = p)
+  Ttrain <- 10 + rnorm(n = n, mean = 0, sd = 1 + 1*(Xtrain[,1]>0))
+  ctrain <- rexp(n = n, rate = 0.05) + 8
   Ytrain <- pmin(Ttrain, ctrain)
-  censorInd <- (Ttrain <= ctrain)
+  censorInd <- 1*(Ttrain <= ctrain)
   print(paste("censoring level is", 1-mean(censorInd)))
   data_train <- cbind.data.frame(Xtrain, Ytrain, censorInd)
   
   # test data
-  Xtest <- matrix(runif(n = n_test*p, min = 0, max = 2), nrow = n_test, ncol = p)
-  quantile_test <- exp(Xtest%*%beta + qnorm(tau, 0, sigma))
-  Ytest <- exp(Xtest%*%beta + rnorm(n_test, mean = 0, sd = sigma))
-  data_test <- cbind.data.frame(Xtest, Ytest, rep(TRUE, n_test))
+  # test data
+  Xtest <- matrix(runif(n = n_test*p, min = -1, max = 1), nrow = n_test, ncol = p)
+  quantile_test <- 10 + qnorm(tau, 0, 1 + 1*(Xtest[,1]>0))
+  Ytest <- 10 + rnorm(n = n_test, mean = 0, sd = 1 + 1*(Xtest[,1]>0))
+  data_test <- cbind.data.frame(Xtest, Ytest, rep(1, n_test))
+  
   # column names
   xnam <- paste0('x', 1:p)
   colnames(data_train) <- c(xnam, 'y', 'status')
@@ -42,10 +43,10 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   # build censored Extreme Forest model
   fmla <- as.formula(paste("y ~ ", paste(xnam, collapse= "+")))
   Yc.qrf <- crf.km(fmla, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test, 
-               yname = 'y', iname = 'status', tau = tau, method = "ranger", splitrule = "extratrees")$predicted
+                   yname = 'y', iname = 'status', tau = tau, method = "ranger", splitrule = "extratrees")$predicted
   
   Yc.grf <- crf.km(fmla, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test, 
-                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = c(0.1, 0.3, 0.5))$predicted
+                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = c(0.1, 0.5, 0.9))$predicted
   
   # generalized random forest (Stefan's)
   grf_qf_latent <- quantile_forest(data_train[,1:p,drop=FALSE], Ttrain, quantiles = tau, 
@@ -91,7 +92,7 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
 }
 
 B = 80
-tau <- 0.3
+tau <- 0.1
 nodesize <- 0
 mse_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
 mad_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
@@ -102,7 +103,7 @@ for (t in 1:B) {
   print(t)
   
   if (t%%10 == 1) {
-    nodesize <- nodesize + 5
+    nodesize <- nodesize + 10
   }
   print(paste0("nodesize is ", nodesize))
   tmp <- one_run(n, n_test, p, tau, nodesize, ntree)
