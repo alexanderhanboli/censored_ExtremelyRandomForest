@@ -19,31 +19,29 @@ library(grf)
 attach(mtcars)
 op <- par(mfrow=c(1,1), mar=c(2,2,1,1)+0.1, oma = c(0,0,0,0) + 0.1, pty="s")
 
-# Load in the data
+# Create the data
 n <- 1000
-p <- 20
 n_test <- 200
+p <- 5
 
 # training data
-Xtrain <- matrix(runif(n = n*p, min = 0, max = 2), nrow = n, ncol = p)
-sigma <- 0.3
-Ttrain <- exp(Xtrain[,1] + rnorm(n, mean = 0, sd = sigma))
-ctrain <- rexp(n = n, rate = 0.08)
+Xtrain <- matrix(runif(n = n*p, min = -1, max = 1), nrow = n, ncol = p)
+Ttrain <- 10 + rnorm(n = n, mean = 1*(Xtrain[,1]>0), sd = 1)
+#ctrain <- rep(1000000000, n)
+ctrain <- 10 + rexp(n = n, rate = 0.05) - 2
 Ytrain <- pmin(Ttrain, ctrain)
 censorInd <- 1*(Ttrain <= ctrain)
 data_train <- cbind.data.frame(Xtrain, Ytrain, censorInd)
-print(mean(censorInd))
 # plot training data
 #plot(Xtrain[,1], Ytrain, cex = 0.2)
 #points(Xtrain[!censorInd,1], Ytrain[!censorInd], type = 'p', col = 'red', cex = 0.3)
 #points(Xtrain[!censorInd,1], Ttrain[!censorInd], type = 'p', col = 'green', cex = 0.3)
 
 # test data
-Xtest <- matrix(runif(n = n_test*p, min = 0, max = 2), nrow = n_test, ncol = p)
-Ytest <- exp(Xtest[,1] + rnorm(n_test, mean = 0, sd = sigma))
+Xtest <- matrix(runif(n = n_test*p, min = -1, max = 1), nrow = n_test, ncol = p)
+Ytest <- 10 + rnorm(n = n_test, mean = 1*(Xtest[,1]>0), sd = 1)
 data_test <- cbind.data.frame(Xtest, Ytest, rep(1, n_test))
-
-plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y', xlim=c(0, 2), ylim=c(0,12))
+plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y', ylim = c(7, 14))
 
 # column names
 xnam <- paste0('x', 1:p)
@@ -51,23 +49,22 @@ colnames(data_train) <- c(xnam, 'y', 'status')
 colnames(data_test) <- c(xnam, 'y', 'status')
 
 # parameters
-ntree = 1000
-taus <- c(0.1, 0.9)
-nodesize.crf <- 80
-nodesize.qrf <- 80
-nodesize.grf <- 80
-nodesize.rsf <- 80
+ntree = 2000
+taus <- c(0.1, 0.5, 0.9)
+nodesize.crf <- 100
+nodesize.qrf <- 100
+nodesize.grf <- 100
+nodesize.rsf <- 100
 
-one_run = function(ntree, tau) {
+one_run = function(ntree, tau, nodesize) {
   # build censored Extreme Forest model
   fmla <- as.formula(paste("y ~ ", paste(xnam, collapse= "+")))
-  
   Yc <- crf.km(fmla, ntree = ntree, nodesize = nodesize.crf, data_train = data_train, data_test = data_test, 
                yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = taus)
   Yc <- Yc$predicted
   
   Yc.qrf <- crf.km(fmla, ntree = ntree, nodesize = nodesize.crf, data_train = data_train, data_test = data_test, 
-                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = taus, reg.split=TRUE)
+                   yname = 'y', iname = 'status', tau = tau, method = "ranger")
   Yc.qrf <- Yc.qrf$predicted
   
   # generalized random forest (Stefan's)
@@ -96,8 +93,7 @@ one_run = function(ntree, tau) {
   Xsort <- sort(Xtest[,1], index.return=TRUE)
   X1 <- Xsort$x
   Xindex <- Xsort$ix
-  
-  quantiles <- exp(X1 + qnorm(tau, 0, sigma))
+  quantiles <- 10 + qnorm(tau, 1*(X1>0), 1)
   lines(X1, quantiles, col = 'black', cex = 2)
   lines(X1, Ygrf[Xindex], col = 'blue', lty = 5, cex = 1)
   # lines(Xtest[,1], Ygrf_latent, col = 'black', type = 'b', pch = 18, lty = 1, cex = .5)
@@ -108,10 +104,10 @@ one_run = function(ntree, tau) {
 }
 
 for (tau in taus){
-  one_run(ntree, tau)
+  one_run(ntree, tau, nodesize)
 }
 
 # Add a legend
-legend(0, 12, legend=c("true quantile", "crf-generalized", "crf-quantile", "grf", "qrf", "rsf"),
+legend(-1, 14, legend=c("true quantile", "crf-generalized", "crf-quantile", "grf", "qrf", "rsf"),
        lty=c(1, 5, 5, 5, 5, 5), cex=1.1, pch = c(-1,-1, -1, -1, -1, -1), 
        col = c('black', 'red', 'purple', 'blue', 'cyan', 'green'))

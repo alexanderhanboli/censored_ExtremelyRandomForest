@@ -4,14 +4,18 @@ if(length(new.packages)) install.packages(new.packages, repos='http://cran.us.r-
 library(foreach)
 library(doParallel)
 
-ranger.getNodes = function(rg, data, y_name, c_name) {
-  pred = predict(rg, data[ ,!(names(data) %in% c(y_name, c_name)), drop=F], type = "terminalNodes")
+ranger.getNodes = function(rg, data, y_name, c_name, x_name=NULL) {
+  if (is.null(x_name)) {
+    pred = predict(rg, data[ ,!(names(data) %in% c(y_name, c_name)), drop=F], type = "terminalNodes")
+  } else {
+    pred = predict(rg, data[ ,x_name], type = "terminalNodes")
+  }
   nodes = pred$predictions
 
   return(nodes)
 }
 
-ranger.getWeights = function(rg, traindata, testdata, y_name, c_name) {
+ranger.getWeights = function(rg, traindata, testdata, y_name, c_name, x_name=NULL) {
   num_cores = detectCores() - 1 #not to overload your computer
   cl <- makeCluster(num_cores, type="FORK")
   cat("number of cores: ", num_cores)
@@ -19,11 +23,11 @@ ranger.getWeights = function(rg, traindata, testdata, y_name, c_name) {
 
   # retrieve training nodes
   #print("retrieving training node information...\n")
-  nodes = ranger.getNodes(rg, traindata, y_name, c_name) # [train.samples, trees]
+  nodes = ranger.getNodes(rg, traindata, y_name, c_name, x_name) # [train.samples, trees]
 
   # retrieve nodes for test data
   #print("retrieving test node information...\n")
-  test.nodes = ranger.getNodes(rg, testdata, y_name, c_name) # [test.samples, trees]
+  test.nodes = ranger.getNodes(rg, testdata, y_name, c_name, x_name) # [test.samples, trees]
   nodesize = test.nodes # [test.samples, trees]
 
   # loop over trees

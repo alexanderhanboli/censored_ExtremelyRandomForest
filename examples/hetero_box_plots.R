@@ -80,20 +80,20 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
       'surv'=metrics(data_test$y, Ysurv, quantile_test, tau),
       'grf_latent'=metrics(data_test$y, Ygrf_latent, quantile_test, tau),
       
-      'crf_quantile_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Yc.qrf),
-      'crf_generalized_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Yc.grf),
-      'qrf_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Yqrf),
-      'qrf_latent_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Yqrf_latent),
-      'grf_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Ygrf),
-      'surv_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Ysurv),
-      'grf_latent_c'=randomForestSRC:::get.cindex(data_test$y, data_test$status, Ygrf_latent)
+      'crf_quantile_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Yc.qrf),
+      'crf_generalized_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Yc.grf),
+      'qrf_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Yqrf),
+      'qrf_latent_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Yqrf_latent),
+      'grf_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Ygrf),
+      'surv_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Ysurv),
+      'grf_latent_c'=1-randomForestSRC:::get.cindex(data_test$y, data_test$status, Ygrf_latent)
     )
   )
 }
 
-B = 80
-tau <- 0.9
-nodesize <- 0
+B = 20
+tau <- 0.1
+nodesize <- 80
 mse_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
 mad_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
 quantile_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
@@ -102,32 +102,10 @@ cindex_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_gen
 for (t in 1:B) {
   print(t)
   
-  if (t%%10 == 1) {
-    nodesize <- nodesize + 20
-  }
-  print(paste0("nodesize is ", nodesize))
   tmp <- one_run(n, n_test, p, tau, nodesize, ntree)
   
   print("saving results...")
-  mse_result$nodesize[t] <- nodesize
-  mse_result$crf_quantile[t] <- tmp$crf_quantile['mse']
-  mse_result$crf_generalized[t] <- tmp$crf_generalized['mse']
-  mse_result$qrf[t] <- tmp$qrf['mse']
-  mse_result$grf[t] <- tmp$grf['mse']
-  mse_result$rsf[t] <- tmp$surv['mse']
-  mse_result$grf_oracle[t] <- tmp$grf_latent['mse']
-  mse_result$qrf_oracle[t] <- tmp$qrf_latent['mse']
   
-  mad_result$nodesize[t] <- nodesize
-  mad_result$crf_quantile[t] <- tmp$crf_quantile['mad']
-  mad_result$crf_generalized[t] <- tmp$crf_generalized['mad']
-  mad_result$qrf[t] <- tmp$qrf['mad']
-  mad_result$grf[t] <- tmp$grf['mad']
-  mad_result$rsf[t] <- tmp$surv['mad']
-  mad_result$grf_oracle[t] <- tmp$grf_latent['mad']
-  mad_result$qrf_oracle[t] <- tmp$qrf_latent['mad']
-  
-  quantile_result$nodesize[t] <- nodesize
   quantile_result$crf_quantile[t] <- tmp$crf_quantile['quantile_loss']
   quantile_result$crf_generalized[t] <- tmp$crf_generalized['quantile_loss']
   quantile_result$qrf[t] <- tmp$qrf['quantile_loss']
@@ -136,7 +114,6 @@ for (t in 1:B) {
   quantile_result$grf_oracle[t] <- tmp$grf_latent['quantile_loss']
   quantile_result$qrf_oracle[t] <- tmp$qrf_latent['quantile_loss']
   
-  cindex_result$nodesize[t] <- nodesize
   cindex_result$crf_quantile[t] <- tmp$crf_quantile_c
   cindex_result$crf_generalized[t] <- tmp$crf_generalized_c
   cindex_result$rsf[t] <- tmp$surv_c
@@ -147,15 +124,16 @@ for (t in 1:B) {
 }
 
 # plot
+# boxplot
 require(reshape2)
-dd <- melt(as.data.frame(quantile_result), id.vars = 'nodesize')
-dd.agg <- aggregate(value ~ nodesize + variable, dd, function(x) c(mean = mean(x), sd = sd(x)/sqrt(10)))
-dd.agg$mean <- dd.agg[-1][[2]][,1]
-dd.agg$sd <- dd.agg[-1][[2]][,2]
-dd.agg$value <- NULL
-ggplot(data = dd.agg, aes(x=nodesize, y=mean, colour=variable)) + 
-  geom_errorbar(aes(ymin=mean-sd, ymax=mean+sd), width=.2, position=position_dodge(0.05)) +
-  geom_line() +
-  geom_point() +
-  labs(x = "Nodesize", y = paste("Quantile loss, tau =", tau), fill = "Nodesize")
-ggsave(paste0("run2_hetero_quantile_loss_nodesize_tau_0", 10*tau, ".pdf"), width = 5, height = 5, path = "../examples/figs")
+# cindex results
+dd <- as.data.frame(cindex_result)
+ggplot(data = melt(dd), aes(x=variable, y=value)) + 
+  geom_boxplot(aes(fill=variable)) + labs(x = "Model", y = paste("C-index, tau =", tau), fill = "Model")
+ggsave(paste0("hetero_cindex_boxplots_result_", 10*tau, ".pdf"), width = 5, height = 5, path = "../examples/figs")
+
+# quantile loss results
+dd <- as.data.frame(quantile_result)
+ggplot(data = melt(dd), aes(x=variable, y=value)) +
+  geom_boxplot(aes(fill=variable)) + labs(x = "Model", y = paste("Quantile loss, tau =", tau), fill = "Model")
+ggsave(paste0("hetero_quantile_loss_boxplots_result_", 10*tau, ".pdf"), width = 5, height = 5, path = "../examples/figs")

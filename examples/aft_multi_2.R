@@ -11,30 +11,28 @@ library(randomForestSRC)
 
 
 # Load in the data
-n <- 2000
+n <- 1000
 n_test <- 200
-p <- 40
-ntree <- 2000
+p <- 20
+ntree <- 1000
 
 one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   
   # training data
-  # training data
-  Xtrain <- matrix(runif(n = n*p, min = -1, max = 1), nrow = n, ncol = p)
-  Ttrain <- 10 + rnorm(n = n, mean = 0, sd = 1 + 1*(Xtrain[,1]>0))
-  ctrain <- rexp(n = n, rate = 0.05) + 8
+  Xtrain <- matrix(runif(n = n*p, min = 0, max = 2), nrow = n, ncol = p)
+  sigma <- 0.3
+  Ttrain <- exp(Xtrain[,1] + rnorm(n, mean = 0, sd = sigma))
+  ctrain <- rexp(n = n, rate = 0.08)
   Ytrain <- pmin(Ttrain, ctrain)
-  censorInd <- 1*(Ttrain <= ctrain)
+  censorInd <- (Ttrain <= ctrain)
   print(paste("censoring level is", 1-mean(censorInd)))
   data_train <- cbind.data.frame(Xtrain, Ytrain, censorInd)
   
   # test data
-  # test data
-  Xtest <- matrix(runif(n = n_test*p, min = -1, max = 1), nrow = n_test, ncol = p)
-  quantile_test <- 10 + qnorm(tau, 0, 1 + 1*(Xtest[,1]>0))
-  Ytest <- 10 + rnorm(n = n_test, mean = 0, sd = 1 + 1*(Xtest[,1]>0))
-  data_test <- cbind.data.frame(Xtest, Ytest, rep(1, n_test))
-  
+  Xtest <- matrix(runif(n = n_test*p, min = 0, max = 2), nrow = n_test, ncol = p)
+  quantile_test <- exp(Xtest[,1] + qnorm(tau, 0, sigma))
+  Ytest <- exp(Xtest[,1] + rnorm(n_test, mean = 0, sd = sigma))
+  data_test <- cbind.data.frame(Xtest, Ytest, rep(TRUE, n_test))
   # column names
   xnam <- paste0('x', 1:p)
   colnames(data_train) <- c(xnam, 'y', 'status')
@@ -43,10 +41,11 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   # build censored Extreme Forest model
   fmla <- as.formula(paste("y ~ ", paste(xnam, collapse= "+")))
   Yc.qrf <- crf.km(fmla, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test, 
-                   yname = 'y', iname = 'status', tau = tau, method = "ranger", splitrule = "extratrees")$predicted
+                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = tau, 
+                   reg.split = TRUE)$predicted
   
   Yc.grf <- crf.km(fmla, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test, 
-                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = c(0.1, 0.5, 0.9))$predicted
+                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = tau)$predicted
   
   # generalized random forest (Stefan's)
   grf_qf_latent <- quantile_forest(data_train[,1:p,drop=FALSE], Ttrain, quantiles = tau, 
@@ -58,11 +57,13 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   Ygrf <- predict(grf_qf, data_test[,1:p,drop=FALSE], quantiles = tau)
   
   # quantile random forest (Meinshasen)
-  qrf_latent <- quantregForest(x=Xtrain, y=Ttrain, nodesize=nodesize, ntree=ntree)
-  Yqrf_latent <- predict(qrf_latent, Xtest, what = tau)
+  qrf_latent <- quantile_forest(data_train[,1:p,drop=FALSE], Ttrain, quantiles = tau, 
+                                num.trees = ntree, min.node.size = nodesize, regression.splitting = TRUE)
+  Yqrf_latent <- predict(qrf_latent, data_test[,1:p,drop=FALSE], quantiles = tau)
   
-  qrf <- quantregForest(x=Xtrain, y=Ytrain, nodesize=nodesize, ntree=ntree)
-  Yqrf <- predict(qrf, Xtest, what = tau)
+  qrf <- quantile_forest(data_train[,1:p,drop=FALSE], Ytrain, quantiles = tau, 
+                         num.trees = ntree, min.node.size = nodesize, regression.splitting = TRUE)
+  Yqrf <- predict(qrf, data_test[,1:p,drop=FALSE], quantiles = tau)
   
   # RSF
   v.rsf <- rfsrc(Surv(y, status) ~ ., data = data_train, ntree = ntree, nodesize = nodesize)
@@ -92,7 +93,7 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
 }
 
 B = 80
-tau <- 0.9
+tau <- 0.7
 nodesize <- 0
 mse_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
 mad_result <- list('nodesize' = rep(NA,B), 'crf_quantile'=rep(NA,B), 'crf_generalized'=rep(NA,B), 'qrf'=rep(NA,B), 'qrf_oracle'=rep(NA,B), 'grf'=rep(NA,B), 'grf_oracle'=rep(NA,B), 'rsf'=rep(NA,B))
@@ -103,7 +104,7 @@ for (t in 1:B) {
   print(t)
   
   if (t%%10 == 1) {
-    nodesize <- nodesize + 20
+    nodesize <- nodesize + 10
   }
   print(paste0("nodesize is ", nodesize))
   tmp <- one_run(n, n_test, p, tau, nodesize, ntree)
@@ -158,4 +159,4 @@ ggplot(data = dd.agg, aes(x=nodesize, y=mean, colour=variable)) +
   geom_line() +
   geom_point() +
   labs(x = "Nodesize", y = paste("Quantile loss, tau =", tau), fill = "Nodesize")
-ggsave(paste0("run2_hetero_quantile_loss_nodesize_tau_0", 10*tau, ".pdf"), width = 5, height = 5, path = "../examples/figs")
+ggsave(paste0("run3_aft_multiD_quantile_loss_nodesize_tau_0", 10*tau, ".pdf"), width = 5, height = 5, path = "../examples/figs")
