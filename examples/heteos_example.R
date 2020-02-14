@@ -28,9 +28,10 @@ p <- 40
 Xtrain <- matrix(runif(n = n*p, min = -1, max = 1), nrow = n, ncol = p)
 Ttrain <- 10 + rnorm(n = n, mean = 0, sd = 1 + 1*(Xtrain[,1]>0))
 #ctrain <- rep(1000000000, n)
-ctrain <- 10 + rexp(n = n, rate = 0.05) - 2
+ctrain <- 10 + rexp(n = n, rate = 0.10) - 2
 Ytrain <- pmin(Ttrain, ctrain)
 censorInd <- 1*(Ttrain <= ctrain)
+print(mean(censorInd))
 data_train <- cbind.data.frame(Xtrain, Ytrain, censorInd)
 # plot training data
 #plot(Xtrain[,1], Ytrain, cex = 0.2)
@@ -41,7 +42,7 @@ data_train <- cbind.data.frame(Xtrain, Ytrain, censorInd)
 Xtest <- matrix(runif(n = n_test*p, min = -1, max = 1), nrow = n_test, ncol = p)
 Ytest <- 10 + rnorm(n = n_test, mean = 0, sd = 1 + 1*(Xtest[,1]>0))
 data_test <- cbind.data.frame(Xtest, Ytest, rep(1, n_test))
-plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y', ylim = c(7, 14))
+plot(Xtest[,1], Ytest, cex = 0.04, xlab = 'x', ylab = 'y', ylim = c(7, 15))
 
 # column names
 xnam <- paste0('x', 1:p)
@@ -109,6 +110,6 @@ for (tau in taus){
 }
 
 # Add a legend
-legend(-1, 14, legend=c("true quantile", "crf-generalized", "crf-quantile", "grf", "qrf", "rsf"),
+legend(-1, 15, legend=c("true quantile", "crf-generalized", "crf-quantile", "grf", "qrf", "rsf"),
        lty=c(1, 5, 5, 5, 5, 5), cex=1.1, pch = c(-1,-1, -1, -1, -1, -1), 
        col = c('black', 'red', 'purple', 'blue', 'cyan', 'green'))

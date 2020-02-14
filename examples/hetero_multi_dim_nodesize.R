@@ -11,10 +11,10 @@ library(randomForestSRC)
 
 
 # Load in the data
-n <- 2000
+n <- 1000
 n_test <- 200
 p <- 40
-ntree <- 2000
+ntree <- 1000
 
 one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   
@@ -22,7 +22,7 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   # training data
   Xtrain <- matrix(runif(n = n*p, min = -1, max = 1), nrow = n, ncol = p)
   Ttrain <- 10 + rnorm(n = n, mean = 0, sd = 1 + 1*(Xtrain[,1]>0))
-  ctrain <- rexp(n = n, rate = 0.05) + 8
+  ctrain <- rexp(n = n, rate = 0.10) + 8
   Ytrain <- pmin(Ttrain, ctrain)
   censorInd <- 1*(Ttrain <= ctrain)
   print(paste("censoring level is", 1-mean(censorInd)))
@@ -43,10 +43,10 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   # build censored Extreme Forest model
   fmla <- as.formula(paste("y ~ ", paste(xnam, collapse= "+")))
   Yc.qrf <- crf.km(fmla, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test, 
-                   yname = 'y', iname = 'status', tau = tau, method = "ranger", splitrule = "extratrees")$predicted
+                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = tau, reg.split = TRUE)$predicted
   
   Yc.grf <- crf.km(fmla, ntree = ntree, nodesize = nodesize, data_train = data_train, data_test = data_test, 
-                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = c(0.1, 0.5, 0.9))$predicted
+                   yname = 'y', iname = 'status', tau = tau, method = "grf", calibrate_taus = tau)$predicted
   
   # generalized random forest (Stefan's)
   grf_qf_latent <- quantile_forest(data_train[,1:p,drop=FALSE], Ttrain, quantiles = tau, 
@@ -58,11 +58,13 @@ one_run <- function(n, n_test, p, tau, nodesize, ntree) {
   Ygrf <- predict(grf_qf, data_test[,1:p,drop=FALSE], quantiles = tau)
   
   # quantile random forest (Meinshasen)
-  qrf_latent <- quantregForest(x=Xtrain, y=Ttrain, nodesize=nodesize, ntree=ntree)
-  Yqrf_latent <- predict(qrf_latent, Xtest, what = tau)
+  qrf_latent <- quantile_forest(data_train[,1:p,drop=FALSE], Ttrain, quantiles = tau, 
+                                num.trees = ntree, min.node.size = nodesize, regression.splitting = TRUE)
+  Yqrf_latent <- predict(qrf_latent, data_test[,1:p,drop=FALSE], quantiles = tau)
   
-  qrf <- quantregForest(x=Xtrain, y=Ytrain, nodesize=nodesize, ntree=ntree)
-  Yqrf <- predict(qrf, Xtest, what = tau)
+  qrf <- quantile_forest(data_train[,1:p,drop=FALSE], Ytrain, quantiles = tau, 
+                         num.trees = ntree, min.node.size = nodesize, regression.splitting = TRUE)
+  Yqrf <- predict(qrf, data_test[,1:p,drop=FALSE], quantiles = tau)
   
   # RSF
   v.rsf <- rfsrc(Surv(y, status) ~ ., data = data_train, ntree = ntree, nodesize = nodesize)
@@ -103,7 +105,7 @@ for (t in 1:B) {
   print(t)
   
   if (t%%10 == 1) {
-    nodesize <- nodesize + 20
+    nodesize <- nodesize + 10
   }
   print(paste0("nodesize is ", nodesize))
   tmp <- one_run(n, n_test, p, tau, nodesize, ntree)
